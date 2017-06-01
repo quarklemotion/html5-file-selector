@@ -44,7 +44,6 @@ function createDataTransferItemFolder(containedFiles) {
   return {
     isDirectory: true,
     isFile: false,
-    numberOfNestedFiles: containedFiles.length,
     createReader: () => {
       return {
         sentEntries: false, // not part of the actual API, just used for real API behavior mimicking

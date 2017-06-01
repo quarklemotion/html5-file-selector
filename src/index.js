@@ -5,5 +5,4 @@
  * LICENSE.txt file in the root directory of this source tree.
  */
 
-import { getDataTransferFiles, getDroppedOrSelectedFiles } from './Html5FileSelector.js';
-export { getDataTransferFiles, getDroppedOrSelectedFiles };
+export { getDataTransferFiles, getDroppedOrSelectedFiles } from './Html5FileSelector.js';

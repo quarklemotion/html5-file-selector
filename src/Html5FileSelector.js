@@ -1,3 +1,5 @@
+import mimeTypes from 'mime-types';
+
 const DEFAULT_FILES_TO_IGNORE = [
   '.DS_Store', // OSX indexing file
   'Thumbs.db'  // Windows indexing file
@@ -39,10 +41,28 @@ function traverseDirectory(entry) {
   });
 }
 
+// package the file in an object that includes the fullPath from the file entry
+// that would otherwise be lost
+function packageFile(file, entry) {
+  let fileTypeOverride = '';
+  // handle some browsers sometimes missing mime types for dropped files
+  const hasExtension = file.name.lastIndexOf('.') !== -1;
+  if (hasExtension && !file.type) {
+    fileTypeOverride = mimeTypes.lookup(file.name);
+  }
+  return {
+    fileObject: file,
+    type: file.type ? file.type : fileTypeOverride,
+    name: file.name,
+    size: file.size,
+    fullPath: entry ? entry.fullPath : file.name
+  };
+}
+
 function getFile(entry) {
   return new Promise((resolve) => {
     entry.file((file) => {
-      resolve(file);
+      resolve(packageFile(file, entry));
     });
   });
 }
@@ -89,7 +109,7 @@ export function getDataTransferFiles(dataTransfer) {
   } else if (filePromises.length) {
     return handleFilePromises(filePromises, dataTransferFiles);
   }
-  return dataTransferFiles;
+  return Promise.resolve(dataTransferFiles);
 }
 
 /**
@@ -102,22 +122,20 @@ export function getDataTransferFiles(dataTransfer) {
  *   and subfolders of the dropped/selected items.
  */
 export function getDroppedOrSelectedFiles(event) {
+
   const dataTransfer = event.dataTransfer;
   if (dataTransfer && dataTransfer.items) {
-    return Promise.resolve(getDataTransferFiles(dataTransfer));
+    return getDataTransferFiles(dataTransfer).then((fileList) => {
+      return Promise.resolve(fileList);
+    });
   }
   const files = [];
   const dragDropFileList = dataTransfer && dataTransfer.files;
   const inputFieldFileList = event.target && event.target.files;
-  const fileList = dragDropFileList || inputFieldFileList;
+  const fileList = dragDropFileList || inputFieldFileList || [];
   // convert the FileList to a simple array of File objects
   for (let i = 0; i < fileList.length; i++) {
-    files.push(fileList[i]);
+    files.push(packageFile(fileList[i]));
   }
   return Promise.resolve(files);
 }
-
-export default {
-  getDataTransferFiles,
-  getDroppedOrSelectedFiles
-};
