@@ -46,7 +46,7 @@ function traverseDirectory(entry) {
 function packageFile(file, entry) {
   let fileTypeOverride = '';
   // handle some browsers sometimes missing mime types for dropped files
-  const hasExtension = file.name.lastIndexOf('.') !== -1;
+  const hasExtension = file.name && file.name.lastIndexOf('.') !== -1;
   if (hasExtension && !file.type) {
     fileTypeOverride = mimeTypes.lookup(file.name);
   }
@@ -122,7 +122,6 @@ export function getDataTransferFiles(dataTransfer) {
  *   and subfolders of the dropped/selected items.
  */
 export function getDroppedOrSelectedFiles(event) {
-
   const dataTransfer = event.dataTransfer;
   if (dataTransfer && dataTransfer.items) {
     return getDataTransferFiles(dataTransfer).then((fileList) => {
