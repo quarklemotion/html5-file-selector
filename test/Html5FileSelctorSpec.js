@@ -6,7 +6,7 @@
  */
 
 import { expect } from 'chai';
-import Html5FileSelector from '../src/Html5FileSelector';
+import * as Html5FileSelector from '../src/Html5FileSelector';
 require('babel-polyfill');
 
 const MOCK_MEDIA_FILES = [
