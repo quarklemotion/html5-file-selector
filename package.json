@@ -1,8 +1,8 @@
 {
   "private": false,
   "name": "html5-file-selector",
-  "version": "1.0.1",
-  "description": "A wrapper library for more easily hanlding html5 drag/drop and file input file and folder selections",
+  "version": "1.0.2",
+  "description": "A wrapper library for more easily handling html5 drag/drop and file input file and folder selections",
   "homepage": "https://www.github.com/quarklemotion/html5-file-selector",
   "repository": "quarklemotion/html5-file-selector",
   "author": "Michael Fields - @quarklemotion",
