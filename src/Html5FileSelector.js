@@ -1,12 +1,29 @@
-import mimeTypes from 'mime-types';
-
 const DEFAULT_FILES_TO_IGNORE = [
   '.DS_Store', // OSX indexing file
   'Thumbs.db'  // Windows indexing file
 ];
 
+// map of common (mostly media types) mime types to use when the browser does not supply the mime type
+const EXTENSION_TO_MIME_TYPE_MAP = {
+  avi: 'video/avi',
+  gif: 'image/gif',
+  ico: 'image/x-icon',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  mkv: 'video/x-matroska',
+  mov: 'video/quicktime',
+  mp4: 'video/mp4',
+  pdf: 'application/pdf',
+  png: 'image/png',
+  zip: 'application/zip'
+};
+
 function shouldIgnoreFile(file) {
   return DEFAULT_FILES_TO_IGNORE.indexOf(file.name) >= 0;
+}
+
+function copyString(aString) {
+  return ` ${aString}`.slice(1);
 }
 
 function traverseDirectory(entry) {
@@ -48,14 +65,18 @@ function packageFile(file, entry) {
   // handle some browsers sometimes missing mime types for dropped files
   const hasExtension = file.name && file.name.lastIndexOf('.') !== -1;
   if (hasExtension && !file.type) {
-    fileTypeOverride = mimeTypes.lookup(file.name);
+    const fileExtension = (file.name || '').split('.').pop();
+    fileTypeOverride = EXTENSION_TO_MIME_TYPE_MAP[fileExtension];
   }
   return {
-    fileObject: file,
-    type: file.type ? file.type : fileTypeOverride,
+    fileObject: file, // provide access to the raw File object (required for uploading)
+    fullPath: entry ? copyString(entry.fullPath) : file.name,
+    lastModified: file.lastModified,
+    lastModifiedDate: file.lastModifiedDate,
     name: file.name,
     size: file.size,
-    fullPath: entry ? entry.fullPath : file.name
+    type: file.type ? file.type : fileTypeOverride,
+    webkitRelativePath: file.webkitRelativePath
   };
 }
 

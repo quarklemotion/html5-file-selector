@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "html5-file-selector",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "A wrapper library for more easily handling html5 drag/drop and file input file and folder selections",
   "homepage": "https://www.github.com/quarklemotion/html5-file-selector",
   "repository": "quarklemotion/html5-file-selector",
@@ -27,8 +27,7 @@
     "extends": "airbnb-base"
   },
   "dependencies": {
-    "babel-runtime": "6.11.x",
-    "mime-types": "2.1.x"
+    "babel-runtime": "6.11.x"
   },
   "devDependencies": {
     "babel-cli": "6.16.x",
