@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+### [v2.1.0] - 2018-05-18
+
+- Remove babel-runtime dependency that was not necessary
+
 ### [v2.0.1] - 2018-05-16
 
 - Fix entry is null if text is dragged onto the dropzone ( #3 )
