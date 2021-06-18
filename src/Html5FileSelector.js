@@ -70,7 +70,7 @@ function packageFile(file, entry) {
   }
   return {
     fileObject: file, // provide access to the raw File object (required for uploading)
-    fullPath: entry ? copyString(entry.fullPath) : file.webkitRelativePath,
+    fullPath: entry ? copyString(entry.fullPath) : (file.webkitRelativePath !== '' ? file.webkitRelativePath : `/${file.name}`),
     lastModified: file.lastModified,
     lastModifiedDate: file.lastModifiedDate,
     name: file.name,
