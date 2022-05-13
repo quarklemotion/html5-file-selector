@@ -1,6 +1,34 @@
 const DEFAULT_FILES_TO_IGNORE = [
   '.DS_Store', // OSX indexing file
-  'Thumbs.db'  // Windows indexing file
+  '.ds_store',
+  'Thumbs.db',  // Windows indexing file
+  '.*~',
+  '~$*',
+  '.~lock.*',
+  '~*.tmp',
+  '*.~*',
+  '._*',
+  '.*.sw?',
+  '.*.*sw?',
+  '.TemporaryItems',
+  '.Trashes',
+  '.DocumentRevisions-V100',
+  '.Trash-*',
+  '.fseventd',
+  '.apdisk',
+  '.directory',
+  '*.part',
+  '*.filepart',
+  '*.crdownload',
+  '*.kate-swp',
+  '*.gnucash.tmp-*',
+  '.synkron.*',
+  '.sync.ffs_db',
+  '.symform',
+  '.symform-store',
+  '.fuse_hidden*',
+  '*.unison',
+  '.nfs*',
 ];
 
 // map of common (mostly media types) mime types to use when the browser does not supply the mime type
@@ -19,7 +47,8 @@ const EXTENSION_TO_MIME_TYPE_MAP = {
 };
 
 function shouldIgnoreFile(file) {
-  return DEFAULT_FILES_TO_IGNORE.indexOf(file.name) >= 0;
+  const micromatch = require('micromatch');
+  return micromatch.isMatch(file.name, DEFAULT_FILES_TO_IGNORE);
 }
 
 function copyString(aString) {
@@ -58,6 +87,29 @@ function traverseDirectory(entry) {
   });
 }
 
+function traverseDirectoryHandle(listItem) {
+  return new Promise(async (resolveDirectory) => {
+    const directoryHandle = await listItem.getAsFileSystemHandle();
+    const iterationAttempts = [];
+    
+    async function* getFileHandlesRecursively(handle) {
+      if (handle.kind === 'file') {
+        yield handle;
+      } else if (handle.kind === 'directory') {
+        for await (const folderHandle of handle.values()) {
+           yield*  getFileHandlesRecursively(folderHandle);
+        }
+      }
+    };
+    
+    for await (const fileHandle of getFileHandlesRecursively(directoryHandle)) {
+      iterationAttempts.push(packageFileHandle(fileHandle, directoryHandle));
+    }
+    
+    resolveDirectory(iterationAttempts);
+  });
+}
+
 // package the file in an object that includes the fullPath from the file entry
 // that would otherwise be lost
 function packageFile(file, entry) {
@@ -80,11 +132,31 @@ function packageFile(file, entry) {
   };
 }
 
-function getFile(entry) {
-  return new Promise((resolve) => {
-    entry.file((file) => {
-      resolve(packageFile(file, entry));
-    });
+function packageFileHandle(fileHandle, folderHandle) {
+  return new Promise(async (resolve) => {
+    const file = await fileHandle.getFile();
+    let fileData = packageFile(file);
+    fileData.fileObject = fileHandle;
+    
+    if (folderHandle) {
+      let pathArray = await folderHandle.resolve(fileHandle);
+      const path = pathArray.join('/');
+      fileData.fullPath = `/${folderHandle.name}/${path}`;
+    }
+    resolve(fileData);
+  });
+}
+
+function getFile(entry, listItem = null) {
+  return new Promise(async (resolve) => {
+    if (typeof entry.getFile === 'function' || listItem) {
+      const fileHandle = listItem ? await listItem.getAsFileSystemHandle() : entry.getFile();
+      resolve(packageFileHandle(fileHandle));
+    } else  {
+      entry.file((file) => {
+        resolve(packageFile(file, entry));
+      });
+    }
   });
 }
 
@@ -99,34 +171,38 @@ function handleFilePromises(promises, fileList) {
   });
 }
 
-export function getDataTransferFiles(dataTransfer) {
+export function getDataTransferFiles(dataTransfer, fileHandle) {
   const dataTransferFiles = [];
   const folderPromises = [];
   const filePromises = [];
 
-  [].slice.call(dataTransfer.items).forEach((listItem) => {
+  [].slice.call(dataTransfer.items).forEach(async (listItem) => {
     if (typeof listItem.webkitGetAsEntry === 'function') {
       const entry = listItem.webkitGetAsEntry();
-
-      if (entry) {
-        if (entry.isDirectory) {
-          folderPromises.push(traverseDirectory(entry));
-        } else {
-          filePromises.push(getFile(entry));
-        }
+    
+      if (!entry) return;
+      if (entry.isDirectory) {
+        const promise = fileHandle ? traverseDirectoryHandle(listItem) : traverseDirectory(entry);
+        folderPromises.push(promise);
+      } else {
+        const fileHandleItem = fileHandle ? listItem : null;
+        filePromises.push(getFile(entry, fileHandleItem));
       }
     } else {
       dataTransferFiles.push(listItem);
     }
   });
   if (folderPromises.length) {
-    const flatten = (array) => array.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
-    return Promise.all(folderPromises).then((fileEntries) => {
-      const flattenedEntries = flatten(fileEntries);
-      // collect async promises to convert each fileEntry into a File object
-      flattenedEntries.forEach((fileEntry) => {
-        filePromises.push(getFile(fileEntry));
-      });
+    return Promise.all(folderPromises).then((promises) => {
+      if (fileHandle) {
+        promises[0].forEach((promise) => {filePromises.push(promise);});
+      } else {
+        const flatten = (array) => array.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
+        const flattenedEntries = flatten(promises);
+        // collect async promises to convert each fileEntry into a File object
+        flattenedEntries.forEach((fileEntry) => {filePromises.push(getFile(fileEntry));});
+      }
+
       return handleFilePromises(filePromises, dataTransferFiles);
     });
   } else if (filePromises.length) {
@@ -134,7 +210,6 @@ export function getDataTransferFiles(dataTransfer) {
   }
   return Promise.resolve(dataTransferFiles);
 }
-
 /**
  * This function should be called from both the onDrop event from your drag/drop
  * dropzone as well as from the HTML5 file selector input field onChange event
@@ -144,12 +219,12 @@ export function getDataTransferFiles(dataTransfer) {
  * Returns: an array of File objects, that includes all files within folders
  *   and subfolders of the dropped/selected items.
  */
-export function getDroppedOrSelectedFiles(event) {
+export function getDroppedOrSelectedFiles(event, fileHandle = true) {
   const dataTransfer = event.dataTransfer;
   if (dataTransfer && dataTransfer.items) {
-    return getDataTransferFiles(dataTransfer).then((fileList) => {
-      return Promise.resolve(fileList);
-    });
+      return getDataTransferFiles(dataTransfer, fileHandle).then((fileList) => {
+        return Promise.resolve(fileList);
+      });
   }
   const files = [];
   const dragDropFileList = dataTransfer && dataTransfer.files;
