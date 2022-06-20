@@ -1,6 +1,35 @@
 const DEFAULT_FILES_TO_IGNORE = [
   '.DS_Store', // OSX indexing file
-  'Thumbs.db'  // Windows indexing file
+  '.ds_store',
+  'Thumbs.db',  // Windows indexing file
+  '.*~',
+  '~$*',
+  '.~lock.*',
+  '~*.tmp',
+  '*.~*',
+  'Icon\r*',
+  '._*',
+  '.*.sw?',
+  '.*.*sw?',
+  '.TemporaryItems',
+  '.Trashes',
+  '.DocumentRevisions-V100',
+  '.Trash-*',
+  '.fseventd',
+  '.apdisk',
+  '.directory',
+  '*.part',
+  '*.filepart',
+  '*.crdownload',
+  '*.kate-swp',
+  '*.gnucash.tmp-*',
+  '.synkron.*',
+  '.sync.ffs_db',
+  '.symform',
+  '.symform-store',
+  '.fuse_hidden*',
+  '*.unison',
+  '.nfs*',
 ];
 
 // map of common (mostly media types) mime types to use when the browser does not supply the mime type
@@ -19,7 +48,13 @@ const EXTENSION_TO_MIME_TYPE_MAP = {
 };
 
 function shouldIgnoreFile(file) {
-  return DEFAULT_FILES_TO_IGNORE.indexOf(file.name) >= 0;
+  let isInignoredList = false;
+  _.each(DEFAULT_FILES_TO_IGNORE, (ignoreFile) => {
+    if (file.name.match(new RegExp(ignoreFile))) {
+      isInignoredList = true;
+    }
+  });
+  return isInignoredList;
 }
 
 function copyString(aString) {
@@ -189,9 +224,10 @@ export function getDataTransferFilesWithFileHandles(dataTransfer) {
     [].slice.call(dataTransfer.items).forEach((listItem) => {
       if (typeof listItem.getAsFileSystemHandle === 'function') {
         const entry = listItem.webkitGetAsEntry();
-        if (listItem.type === '') {
+        if (entry.isDirectory) {
           folderPromises.push(traverseDirectoryHandle(listItem));
-        } else {
+        } 
+        if (entry.isFile) {
           filePromises.push(getFile(entry, listItem));
         }
       }
