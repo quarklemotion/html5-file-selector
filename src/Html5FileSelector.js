@@ -88,25 +88,28 @@ function traverseDirectory(entry) {
 }
 
 function traverseDirectoryHandle(listItem) {
-  return new Promise(async (resolveDirectory) => {
-    const directoryHandle = await listItem.getAsFileSystemHandle();
+  return new Promise(async (resolveDirectory, reject) => {
     const iterationAttempts = [];
-    
-    async function* getFileHandlesRecursively(handle) {
-      if (handle.kind === 'file') {
-        yield handle;
-      } else if (handle.kind === 'directory') {
-        for await (const folderHandle of handle.values()) {
-           yield*  getFileHandlesRecursively(folderHandle);
+    try {
+      const directoryHandle = await listItem.getAsFileSystemHandle();
+  
+      async function* getFileHandlesRecursively(handle) {
+        if (handle.kind === 'file') {
+          yield handle;
+        } else if (handle.kind === 'directory') {
+          for await (const folderHandle of handle.values()) {
+            yield*  getFileHandlesRecursively(folderHandle);
+          }
         }
+      };
+  
+      for await (const fileHandle of getFileHandlesRecursively(directoryHandle)) {
+        iterationAttempts.push(packageFileHandle(fileHandle, directoryHandle));
       }
-    };
-    
-    for await (const fileHandle of getFileHandlesRecursively(directoryHandle)) {
-      iterationAttempts.push(packageFileHandle(fileHandle, directoryHandle));
+      resolveDirectory(iterationAttempts);
+    } catch (e) {
+      reject(e);
     }
-    
-    resolveDirectory(iterationAttempts);
   });
 }
 
@@ -147,15 +150,24 @@ function packageFileHandle(fileHandle, folderHandle) {
   });
 }
 
-function getFile(entry, listItem = null) {
-  return new Promise(async (resolve) => {
-    if (typeof entry.getFile === 'function' || listItem) {
-      const fileHandle = listItem ? await listItem.getAsFileSystemHandle() : entry.getFile();
-      resolve(packageFileHandle(fileHandle));
-    } else  {
-      entry.file((file) => {
-        resolve(packageFile(file, entry));
-      });
+function getFile(entry) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      if (typeof entry.getAsFileSystemHandle === 'function') {
+        const fileHandle = await entry.getAsFileSystemHandle();
+        resolve(packageFileHandle(fileHandle));
+      }
+      if (typeof entry.getFile === 'function') {
+        const file = entry.getFile();
+        resolve(packageFileHandle(file));
+      }
+      if (typeof entry.file === 'function') {
+        entry.file((file) => {
+          resolve(packageFile(file, entry));
+        });
+      }
+    } catch (e) {
+      reject(e);
     }
   });
 }
@@ -179,14 +191,16 @@ export function getDataTransferFiles(dataTransfer, fileHandle) {
   [].slice.call(dataTransfer.items).forEach(async (listItem) => {
     if (typeof listItem.webkitGetAsEntry === 'function') {
       const entry = listItem.webkitGetAsEntry();
-    
+
       if (!entry) return;
+      fileHandle = fileHandle && typeof listItem.getAsFileSystemHandle === 'function';
+
       if (entry.isDirectory) {
         const promise = fileHandle ? traverseDirectoryHandle(listItem) : traverseDirectory(entry);
         folderPromises.push(promise);
       } else {
-        const fileHandleItem = fileHandle ? listItem : null;
-        filePromises.push(getFile(entry, fileHandleItem));
+        const fileEntry = fileHandle ? listItem : entry;
+        filePromises.push(getFile(fileEntry));
       }
     } else {
       dataTransferFiles.push(listItem);
