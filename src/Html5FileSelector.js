@@ -87,12 +87,10 @@ function traverseDirectory(entry) {
   });
 }
 
-function traverseDirectoryHandle(listItem) {
+function traverseDirectoryHandle(directoryHandle) {
   return new Promise(async (resolveDirectory, reject) => {
     const iterationAttempts = [];
     try {
-      const directoryHandle = await listItem.getAsFileSystemHandle();
-  
       async function* getFileHandlesRecursively(handle) {
         if (handle.kind === 'file') {
           yield handle;
@@ -153,21 +151,20 @@ function packageFileHandle(fileHandle, folderHandle) {
 function getFile(entry) {
   return new Promise(async (resolve, reject) => {
     try {
-      if (typeof entry.getAsFileSystemHandle === 'function') {
-        const fileHandle = await entry.getAsFileSystemHandle();
-        resolve(packageFileHandle(fileHandle));
+      if (entry.kind === 'file') {
+        return resolve(packageFileHandle(entry));
       }
       if (typeof entry.getFile === 'function') {
         const file = entry.getFile();
-        resolve(packageFileHandle(file));
+        return resolve(packageFileHandle(file));
       }
       if (typeof entry.file === 'function') {
         entry.file((file) => {
-          resolve(packageFile(file, entry));
+          return resolve(packageFile(file, entry));
         });
       }
     } catch (e) {
-      reject(e);
+      return reject(e);
     }
   });
 }
@@ -183,40 +180,73 @@ function handleFilePromises(promises, fileList) {
   });
 }
 
-export function getDataTransferFiles(dataTransfer, fileHandle) {
+function getFileEntry(listItem, useFileHandle) {
+  return new Promise(async (resolve, reject) => {
+    let fileEntry = listItem;
+    
+    try {
+      if (typeof listItem.webkitGetAsEntry === 'function') {
+        fileEntry = listItem.webkitGetAsEntry();
+      }
+      
+      if (useFileHandle && typeof listItem.getAsFileSystemHandle === 'function') {
+        const fileHandle = await listItem.getAsFileSystemHandle();
+        return resolve(fileHandle);
+      }
+
+      return resolve(fileEntry);
+    } catch (e) {
+      //console.error(e);
+      return resolve(fileEntry);
+    }
+  })
+}
+
+export async function getDataTransferFiles(dataTransfer, fileHandle) {
   const dataTransferFiles = [];
   const folderPromises = [];
   const filePromises = [];
-
+  const entryPromises = [];
+  
   [].slice.call(dataTransfer.items).forEach(async (listItem) => {
-    if (typeof listItem.webkitGetAsEntry === 'function') {
-      const entry = listItem.webkitGetAsEntry();
-
-      if (!entry) return;
-      fileHandle = fileHandle && typeof listItem.getAsFileSystemHandle === 'function';
-
-      if (entry.isDirectory) {
-        const promise = fileHandle ? traverseDirectoryHandle(listItem) : traverseDirectory(entry);
-        folderPromises.push(promise);
-      } else {
-        const fileEntry = fileHandle ? listItem : entry;
-        filePromises.push(getFile(fileEntry));
-      }
-    } else {
+    if (typeof listItem.webkitGetAsEntry !== 'function') {
       dataTransferFiles.push(listItem);
+    } else {
+      entryPromises.push(getFileEntry(listItem, fileHandle));
     }
   });
+  
+  const items = await Promise.all(entryPromises);
+  
+  items.forEach((item) => {
+    if (item.kind !== 'directory' && item.kind !== 'file') {
+      fileHandle = false;
+    }
+    
+    if (item.kind === 'directory') {
+      folderPromises.push(traverseDirectoryHandle(item));
+    } else if (item.isDirectory) {
+      folderPromises.push(traverseDirectory(item));
+    } else {
+      filePromises.push(getFile(item));
+    }
+  })
+  
   if (folderPromises.length) {
     return Promise.all(folderPromises).then((promises) => {
       if (fileHandle) {
-        promises[0].forEach((promise) => {filePromises.push(promise);});
+        promises[0].forEach((promise) => {
+          filePromises.push(promise);
+        });
       } else {
         const flatten = (array) => array.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
         const flattenedEntries = flatten(promises);
         // collect async promises to convert each fileEntry into a File object
-        flattenedEntries.forEach((fileEntry) => {filePromises.push(getFile(fileEntry));});
+        flattenedEntries.forEach((fileEntry) => {
+          filePromises.push(getFile(fileEntry));
+        });
       }
-
+      
       return handleFilePromises(filePromises, dataTransferFiles);
     });
   } else if (filePromises.length) {
