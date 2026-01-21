@@ -15,7 +15,7 @@ const DEFAULT_FILES_TO_IGNORE = [
   '.TemporaryItems',
   '.Trashes',
   '.DocumentRevisions-V100',
-  '.Trash-*', 
+  '.Trash-*',
   '.fseventd',
   '.apdisk',
   '.directory',
