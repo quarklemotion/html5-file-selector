@@ -1,3 +1,5 @@
+const micromatch = require('micromatch');
+
 const DEFAULT_FILES_TO_IGNORE = [
   '.DS_Store', // OSX indexing file
   '.ds_store',
@@ -13,7 +15,7 @@ const DEFAULT_FILES_TO_IGNORE = [
   '.TemporaryItems',
   '.Trashes',
   '.DocumentRevisions-V100',
-  '.Trash-*',
+  '.Trash-*', 
   '.fseventd',
   '.apdisk',
   '.directory',
@@ -47,7 +49,6 @@ const EXTENSION_TO_MIME_TYPE_MAP = {
 };
 
 function shouldIgnoreFile(file) {
-  const micromatch = require('micromatch');
   return micromatch.isMatch(file.name, DEFAULT_FILES_TO_IGNORE);
 }
 
