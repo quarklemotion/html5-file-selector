@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+### [v2.1.2] - 2026-01-23
+
+- Import instead of require ( #14 )
+
+### [v2.1.1] - 2026-01-21
+
+- Pu/fix filehandle support ( #9 )
+
 ### [v2.1.0] - 2018-05-18
 
 - Remove babel-runtime dependency that was not necessary
