@@ -1,4 +1,4 @@
-const micromatch = require('micromatch');
+import micromatch from 'micromatch';
 
 const DEFAULT_FILES_TO_IGNORE = [
   '.DS_Store', // OSX indexing file
